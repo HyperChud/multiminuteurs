@@ -1,4 +1,6 @@
-# Multi Minuteurs
+<p align="center"><img src="docs/icon.png" width="120" alt="Multi Minuteurs icon"></p>
+
+<h1 align="center">Multi Minuteurs</h1>
 
 A simple Android app for running several timers at the same time.
 
