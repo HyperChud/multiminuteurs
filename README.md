@@ -18,12 +18,27 @@ Kotlin + Jetpack Compose, no ads, no tracking, no network access. Everything sta
 - Settings: language (system / English / French) and an optional hundredths-of-a-second display
 - "Glass" look over a slowly animated background
 
+## Download
+
+Get the latest signed APK from the [Releases](../../releases/latest) page.
+
 ## Build
 
 ### With GitHub Actions (no computer needed)
 
-Every push to `main` builds a debug APK. Open the **Actions** tab, pick the latest run and download the
+To publish a new release, push a tag like `v1.1` (or run the **Release** workflow by hand). It builds a signed
+APK and attaches it to a GitHub release. This needs the signing secrets described below.
+
+For quick test builds, every push to `main` builds a debug APK. Open the **Actions** tab, pick the latest run and download the
 `MultiMinuteurs-debug` artifact. You can also start a build by hand with **Run workflow**.
+
+The release workflow needs these repository secrets (**Settings → Secrets and variables → Actions**):
+
+| Secret | Value |
+| --- | --- |
+| `KEYSTORE_BASE64` | your keystore file, base64-encoded (`base64 -w0 your.keystore`) |
+| `KS_PASS` | keystore and key password |
+| `KS_ALIAS` | key alias |
 
 ### With Android Studio
 

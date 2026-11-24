@@ -15,8 +15,24 @@ android {
         versionCode = 1
         versionName = "1.0"
     }
+    signingConfigs {
+        // Release key comes from environment variables (set by the release workflow from repo secrets).
+        // Nothing secret is stored in the repo.
+        val ks = System.getenv("KEYSTORE")
+        if (ks != null && file(ks).exists()) {
+            create("release") {
+                storeFile = file(ks)
+                storePassword = System.getenv("KS_PASS")
+                keyAlias = System.getenv("KS_ALIAS")
+                keyPassword = System.getenv("KS_PASS")
+            }
+        }
+    }
     buildTypes {
-        release { isMinifyEnabled = false }
+        release {
+            isMinifyEnabled = false
+            signingConfig = signingConfigs.findByName("release")
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
