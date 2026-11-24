@@ -29,8 +29,8 @@ prefs() { # $1 = scenario, $2 = theme
     adb shell run-as $PKG sh -c "'mkdir -p shared_prefs && cp /data/local/tmp/$f.xml shared_prefs/$f.xml'"
   done
 }
-launch() { adb shell am force-stop $PKG; adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1 >/dev/null; sleep 5; }
-shot() { adb exec-out screencap -p > "$OUT/$1.png"; echo "shot $1"; }
+launch() { adb shell am force-stop $PKG; adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1 >/dev/null; sleep 15; }
+shot() { sleep 2; adb exec-out screencap -p > "$OUT/$1.png"; echo "shot $1"; }
 # Infinite animations keep uiautomator from ever going idle, so buttons are found by colour on a screenshot.
 tap_color() { # $1 = hex colour, $2 = x column to scan
   adb exec-out screencap -p > /tmp/scr.png
@@ -45,11 +45,11 @@ PY
 )
   echo "tap $1 at $xy"; adb shell input tap $xy; sleep 3
 }
-tap_xy() { echo "tap $1 $2"; adb shell input tap "$1" "$2"; sleep 3; }
+tap_xy() { echo "tap $1 $2"; adb shell input tap "$1" "$2"; sleep 8; }
 
 prefs home dark;    launch; shot home
 prefs ringing dark; launch; shot ringing
-prefs home dark;    launch; tap_color "${NEW_COLOR}" 250; shot new
-prefs home dark;    launch; tap_xy 768 2200; shot settings
+prefs home dark;    launch; tap_xy 350 1018; shot new
+prefs home dark;    launch; tap_xy 768 2232; shot settings
 prefs home light;   launch; shot light
 ls -la "$OUT"
