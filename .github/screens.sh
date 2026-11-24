@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Takes the README screenshots on an emulator, with made-up demo data.
-set -euo pipefail
+set -uo pipefail
+pip install -q pillow >/dev/null 2>&1 || true
+# primary colour of the violet dark theme = hsl(272 55% 72%)
+NEW_COLOR=$(python3 -c "import colorsys;r,g,b=colorsys.hls_to_rgb(272/360,.72,.55);print('%02x%02x%02x'%(round(r*255),round(g*255),round(b*255)))")
 PKG=com.example.multiminuteurs
 OUT=shots; mkdir -p "$OUT"
 adb install -r app/build/outputs/apk/debug/app-debug.apk
@@ -28,24 +31,25 @@ prefs() { # $1 = scenario, $2 = theme
 }
 launch() { adb shell am force-stop $PKG; adb shell monkey -p $PKG -c android.intent.category.LAUNCHER 1 >/dev/null; sleep 5; }
 shot() { adb exec-out screencap -p > "$OUT/$1.png"; echo "shot $1"; }
-tap_text() { # taps the first on-screen element showing this text
-  adb shell uiautomator dump /sdcard/ui.xml >/dev/null; adb pull /sdcard/ui.xml /tmp/ui.xml >/dev/null
-  local xy; xy=$(python3 - "$1" <<'PY'
-import re, sys
-s = open('/tmp/ui.xml').read()
-for m in re.finditer(r'<node [^>]*>', s):
-    n = m.group(0)
-    if f'text="{sys.argv[1]}"' in n or f'content-desc="{sys.argv[1]}"' in n:
-        a = list(map(int, re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', n).groups()))
-        print((a[0] + a[2]) // 2, (a[1] + a[3]) // 2); break
+# Infinite animations keep uiautomator from ever going idle, so buttons are found by colour on a screenshot.
+tap_color() { # $1 = hex colour, $2 = x column to scan
+  adb exec-out screencap -p > /tmp/scr.png
+  local xy; xy=$(python3 - "$1" "$2" <<'PY'
+import sys
+from PIL import Image
+im = Image.open('/tmp/scr.png').convert('RGB'); w, h = im.size
+c = tuple(int(sys.argv[1][i:i + 2], 16) for i in (0, 2, 4)); x = int(sys.argv[2])
+ys = [y for y in range(h) if sum(abs(a - b) for a, b in zip(im.getpixel((x, y)), c)) < 24]
+print(x, (ys[0] + ys[-1]) // 2 if ys else h // 2)
 PY
 )
   echo "tap $1 at $xy"; adb shell input tap $xy; sleep 3
 }
+tap_xy() { echo "tap $1 $2"; adb shell input tap "$1" "$2"; sleep 3; }
 
 prefs home dark;    launch; shot home
 prefs ringing dark; launch; shot ringing
-prefs home dark;    launch; tap_text "New"; shot new
-prefs home dark;    launch; tap_text "Settings"; shot settings
+prefs home dark;    launch; tap_color "${NEW_COLOR}" 250; shot new
+prefs home dark;    launch; tap_xy 768 2200; shot settings
 prefs home light;   launch; shot light
 ls -la "$OUT"
