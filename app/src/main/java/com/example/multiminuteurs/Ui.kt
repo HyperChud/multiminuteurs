@@ -1,47 +1,60 @@
 package com.example.multiminuteurs
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -50,50 +63,43 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlin.random.Random
+
+private val Emph = CubicBezierEasing(0.2f, 0f, 0f, 1f)
+private val NavHeight = 80.dp
 
 @Composable
-fun AppTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = darkColorScheme(
-            primary = Palette.Violet,
-            secondary = Palette.Cyan,
-            background = Palette.Bg,
-            surface = Color(0xFF14141F),
-            onSurface = Color.White,
-            onBackground = Color.White,
-        ),
-        content = content
-    )
-}
-
-@Composable
-fun TimersScreen() {
+fun App() {
     val ctx = LocalContext.current
     val timers by TimerStore.timers.collectAsState()
     val settings by SettingsStore.settings.collectAsState()
-    val s = remember(settings) { stringsFor(settings) }
+    val s = remember(settings.lang) { stringsFor(settings) }
     val showMs = settings.showMs
 
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     val anyRunning = timers.any { it.running }
 
-    // Refresh: every frame when showing centiseconds, otherwise 5x/s
+    // Refresh: every frame with hundredths, otherwise 5 times a second
     LaunchedEffect(anyRunning, showMs) {
         now = System.currentTimeMillis()
         while (anyRunning) {
@@ -102,452 +108,631 @@ fun TimersScreen() {
         }
     }
 
+    var tab by rememberSaveable { mutableIntStateOf(0) }
     var showAdd by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf<TimerItem?>(null) }
-    var showSettings by remember { mutableStateOf(false) }
+    val quip = rememberSaveable { Random.nextInt(5) }
 
     Box(Modifier.fillMaxSize()) {
-        LiquidBackground(Modifier.fillMaxSize())
+        PatternBackground(settings.pattern, Modifier.fillMaxSize())
 
-        Column(Modifier.fillMaxSize().statusBarsPadding()) {
-            Header(s, timers.count { it.running }) { showSettings = true }
-
-            if (timers.isEmpty()) {
-                EmptyState(s, Modifier.weight(1f).fillMaxWidth())
+        AnimatedContent(
+            targetState = tab,
+            transitionSpec = {
+                (fadeIn(tween(320, easing = Emph)) + slideInVertically(tween(450, easing = Emph)) { it / 28 }) togetherWith
+                    fadeOut(tween(140))
+            },
+            label = "tab"
+        ) { t ->
+            if (t == 0) {
+                HomeScreen(
+                    timers = timers, now = now, showMs = showMs, s = s, quip = s.quips[quip % s.quips.size],
+                    onAdd = { showAdd = true },
+                    onEdit = { editing = it },
+                )
             } else {
-                LazyColumn(
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    contentPadding = PaddingValues(start = 18.dp, top = 10.dp, end = 18.dp, bottom = 140.dp),
-                    verticalArrangement = Arrangement.spacedBy(18.dp)
-                ) {
-                    items(timers, key = { it.id }) { t ->
-                        TimerCard(
-                            t = t,
-                            now = now,
-                            showMs = showMs,
-                            s = s,
-                            onToggle = { TimerActions.toggle(ctx, t.id) },
-                            onReset = { TimerActions.reset(ctx, t.id) },
-                            onEdit = { editing = t },
-                            onDelete = { TimerActions.delete(ctx, t.id) },
-                            modifier = Modifier.animateItem()
-                        )
-                    }
+                SettingsScreen(settings = settings, s = s) { new ->
+                    SettingsStore.update(ctx) { new }
+                    TimerActions.refreshNotifications(ctx)
                 }
             }
         }
 
-        GradientCircleButton(
-            onClick = { showAdd = true },
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .navigationBarsPadding()
-                .padding(24.dp),
-            size = 66.dp
-        ) {
-            Icon(Icons.Filled.Add, contentDescription = s.newTimer, tint = Color.White, modifier = Modifier.size(32.dp))
-        }
+        BottomNav(tab = tab, onTab = { tab = it }, s = s, modifier = Modifier.align(Alignment.BottomCenter))
     }
 
     if (showAdd) {
-        TimerDialog(
-            initial = null,
-            s = s,
+        TimerSheet(
+            initial = null, s = s,
             onDismiss = { showAdd = false },
-            onConfirm = { label, ms ->
-                TimerActions.add(ctx, label, ms)
-                showAdd = false
-            }
+            onConfirm = { label, ms -> TimerActions.add(ctx, label, ms) },
+            onDelete = null,
         )
     }
 
     editing?.let { e ->
-        TimerDialog(
-            initial = e,
-            s = s,
+        TimerSheet(
+            initial = e, s = s,
             onDismiss = { editing = null },
-            onConfirm = { label, ms ->
-                TimerActions.edit(ctx, e.id, label, ms)
-                editing = null
-            }
-        )
-    }
-
-    if (showSettings) {
-        SettingsSheet(
-            settings = settings,
-            s = s,
-            onDismiss = { showSettings = false },
-            onChange = { new ->
-                SettingsStore.update(ctx) { new }
-                TimerActions.refreshNotifications(ctx)
-            }
+            onConfirm = { label, ms -> TimerActions.edit(ctx, e.id, label, ms) },
+            onDelete = { TimerActions.delete(ctx, e.id) },
         )
     }
 }
 
+// ---------------------------------------------------------------- home
+
 @Composable
-private fun Header(s: Strings, runningCount: Int, onSettings: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().padding(start = 24.dp, end = 16.dp, top = 16.dp, bottom = 12.dp),
-        verticalAlignment = Alignment.CenterVertically
+private fun HomeScreen(
+    timers: List<TimerItem>,
+    now: Long,
+    showMs: Boolean,
+    s: Strings,
+    quip: String,
+    onAdd: () -> Unit,
+    onEdit: (TimerItem) -> Unit,
+) {
+    val ctx = LocalContext.current
+    val pal = LocalPal.current
+    val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = top + 16.dp, bottom = bottom + NavHeight + 24.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                text = s.appTitle,
-                color = Color.White,
-                fontSize = 36.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = (-0.5).sp
-            )
-            Text(text = s.running(runningCount), color = Palette.TextDim, fontSize = 15.sp)
+        item(key = "head") { Header(s.appTitle, quip) }
+        // the summary card only makes sense with several timers
+        if (timers.size >= 2) item(key = "hero") { Hero(timers, now, showMs, s, Modifier.animateItem()) }
+        item(key = "actions") {
+            val ringing = timers.filter { it.finished }
+            val running = timers.filter { it.running }
+            val paused = timers.filter { it.isPaused }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                TButton(
+                    text = s.newShort, icon = Ic.add, onClick = onAdd, big = true,
+                    container = pal.primary, content = pal.onPrimary,
+                    modifier = Modifier.weight(1.6f)
+                )
+                if (timers.isNotEmpty()) {
+                    val (label, icon, action) = when {
+                        ringing.isNotEmpty() -> Triple(s.stopAll, Ic.stop) { ringing.forEach { TimerActions.reset(ctx, it.id) } }
+                        running.isNotEmpty() -> Triple(s.pauseAll, Ic.pause) { running.forEach { TimerActions.pause(ctx, it.id) } }
+                        paused.isNotEmpty() -> Triple(s.resumeAll, Ic.play) { paused.forEach { TimerActions.start(ctx, it.id) } }
+                        else -> Triple(s.startAll, Ic.play) { timers.forEach { TimerActions.start(ctx, it.id) } }
+                    }
+                    BulkButton(label, icon, action, Modifier.weight(1f))
+                }
+            }
         }
-        GlassIconButton(onClick = onSettings) {
-            Icon(Icons.Filled.Settings, contentDescription = s.settings, tint = Color.White)
+        if (timers.isNotEmpty()) {
+            item(key = "label") { SectionLabel(s.yourTimers, Modifier.padding(top = 4.dp)) }
+            items(timers, key = { it.id }) { t ->
+                TimerCard(
+                    t = t, now = now, showMs = showMs, s = s,
+                    onToggle = { TimerActions.toggle(ctx, t.id) },
+                    onStart = { TimerActions.start(ctx, t.id) },
+                    onReset = { TimerActions.reset(ctx, t.id) },
+                    onEdit = { onEdit(t) },
+                    modifier = Modifier.animateItem()
+                )
+            }
+            item(key = "hint") {
+                Text(
+                    s.tapToEdit, style = Type.caption, color = pal.onSurfaceVariant.copy(alpha = 0.7f),
+                    textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth().padding(top = 4.dp)
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun EmptyState(s: Strings, modifier: Modifier = Modifier) {
-    Box(modifier, contentAlignment = Alignment.Center) {
-        Column(
-            Modifier
-                .padding(32.dp)
-                .glass(RoundedCornerShape(32.dp))
-                .padding(horizontal = 36.dp, vertical = 32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(text = s.emptyTitle, color = Color.White, fontSize = 22.sp, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(6.dp))
-            Text(text = s.emptyHint, color = Palette.TextDim, fontSize = 15.sp, textAlign = TextAlign.Center)
+private fun Header(title: String, quip: String) {
+    val pal = LocalPal.current
+    Column(Modifier.padding(start = 6.dp, end = 6.dp, bottom = 6.dp)) {
+        AnimatedTitle(title, Type.title, pal.onSurface)
+        var shown by remember { mutableStateOf(false) }
+        LaunchedEffect(Unit) { delay(200); shown = true }
+        val a by animateFloatAsState(if (shown) 1f else 0f, tween(600, easing = Emph), label = "q")
+        Text(
+            quip, style = Type.quip, color = pal.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp).graphicsLayer { alpha = a; translationY = (1f - a) * 12f }
+        )
+    }
+}
+
+@Composable
+private fun BulkButton(label: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit, modifier: Modifier) {
+    val pal = LocalPal.current
+    val src = remember { MutableInteractionSource() }
+    val pressed by src.collectIsPressedAsState()
+    val r by animateDpAsState(if (pressed) 40.dp else 28.dp, spring(0.5f, 600f), label = "r")
+    val sc by animateFloatAsState(if (pressed) 0.93f else 1f, spring(0.45f, 500f), label = "sc")
+    Column(
+        modifier
+            .height(76.dp)
+            .graphicsLayer { scaleX = sc; scaleY = sc }
+            .clip(RoundedCornerShape(r))
+            .background(pal.secondaryContainer)
+            .clickable(interactionSource = src, indication = null, onClick = onClick)
+            .padding(horizontal = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(icon, contentDescription = null, tint = pal.onSecondaryContainer, modifier = Modifier.size(24.dp))
+        Text(
+            label, style = Type.button.copy(fontSize = 14.sp), color = pal.onSecondaryContainer,
+            maxLines = 1, overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+/** Big card at the top, like Topé's: what's going on right now. */
+@Composable
+private fun Hero(timers: List<TimerItem>, now: Long, showMs: Boolean, s: Strings, modifier: Modifier = Modifier) {
+    val ctx = LocalContext.current
+    val pal = LocalPal.current
+    val ringing = timers.filter { it.finished }
+    val running = timers.filter { it.running }.sortedBy { it.endAt }
+    val fg = pal.onPrimaryContainer
+
+    Box(
+        modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(36.dp, 36.dp, 36.dp, 12.dp))
+            .background(pal.primaryContainer)
+    ) {
+        Blob(
+            fg.copy(alpha = 0.16f),
+            Modifier.size(150.dp).align(Alignment.TopEnd).offset(x = 30.dp, y = (-30).dp)
+        )
+        Column(Modifier.padding(start = 22.dp, end = 22.dp, top = 22.dp, bottom = 20.dp)) {
+            val wordStyle = fs(44.sp, 700, 114, (-1.2).sp)
+            when {
+                ringing.isNotEmpty() -> {
+                    Text(s.ringing + s.ringingCount(ringing.size), style = Type.label, color = fg.copy(alpha = 0.8f))
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        ringing.first().displayName(s), style = wordStyle, color = fg,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(s.finished, style = Type.body, color = fg.copy(alpha = 0.85f))
+                }
+                running.isNotEmpty() -> {
+                    val t = running.first()
+                    val rem = t.remainingAt(now)
+                    val txt = formatTime(rem, showMs)
+                    val size = when {
+                        txt.length >= 9 -> 44.sp
+                        txt.length >= 7 -> 52.sp
+                        else -> 64.sp
+                    }
+                    Text(s.nextToRing, style = Type.label, color = fg.copy(alpha = 0.8f))
+                    TimeText(
+                        txt, style = fs(size, 700, 114, (-1.5).sp), color = fg, animate = true,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
+                    )
+                    val at = android.text.format.DateFormat.getTimeFormat(ctx).format(java.util.Date(t.endAt))
+                    Text(
+                        t.displayName(s) + " · " + s.endsAt(at).replaceFirstChar { it.lowercase() } + s.othersRunning(running.size - 1),
+                        style = Type.body, color = fg.copy(alpha = 0.85f), maxLines = 2
+                    )
+                    Spacer(Modifier.height(14.dp))
+                    WavyProgress(
+                        progress = if (t.durationMs > 0) rem.toFloat() / t.durationMs else 0f,
+                        color = pal.primary, track = fg.copy(alpha = 0.14f), moving = true
+                    )
+                }
+                else -> {
+                    Text(s.rightNow, style = Type.label, color = fg.copy(alpha = 0.8f))
+                    Spacer(Modifier.height(6.dp))
+                    Text(s.allQuiet, style = wordStyle, color = fg)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        if (timers.isEmpty()) s.emptyHint else s.readyCount(timers.size),
+                        style = Type.body, color = fg.copy(alpha = 0.85f)
+                    )
+                }
+            }
         }
     }
 }
 
 @Composable
-fun TimerCard(
+private fun TimerCard(
     t: TimerItem,
     now: Long,
     showMs: Boolean,
     s: Strings,
     onToggle: () -> Unit,
+    onStart: () -> Unit,
     onReset: () -> Unit,
     onEdit: () -> Unit,
-    onDelete: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val ctx = LocalContext.current
+    val pal = LocalPal.current
+    val c = remember(t.hue, pal) { timerColors(t.hue, pal) }
     val rem = t.remainingAt(now)
     val progress = if (t.durationMs > 0) (rem.toFloat() / t.durationMs).coerceIn(0f, 1f) else 0f
-    val corner = 30.dp
-    val shape = RoundedCornerShape(corner)
-    val (c1, c2) = remember(t.hue) { timerColors(t.hue) }
 
-    // Done: full border that pulses
+    // Done: the card breathes in its own color
     val pulse = if (t.finished) {
-        val tr = rememberInfiniteTransition(label = "pulse")
-        tr.animateFloat(
-            0.3f, 1f, infiniteRepeatable(tween(650), RepeatMode.Reverse), label = "pulseA"
-        ).value
-    } else 1f
+        rememberInfiniteTransition(label = "pulse")
+            .animateFloat(0f, 1f, infiniteRepeatable(tween(700, easing = Emph), RepeatMode.Reverse), label = "pa").value
+    } else 0f
+    val bg = lerp(c.container, c.accent, pulse * 0.35f)
 
-    val subtitle = when {
+    val src = remember { MutableInteractionSource() }
+    val pressed by src.collectIsPressedAsState()
+    val sc by animateFloatAsState(if (pressed) 0.97f else 1f, spring(0.5f, 500f), label = "sc")
+
+    val status = when {
         t.finished -> s.finished
-        t.running -> s.endsAt(
-            android.text.format.DateFormat.getTimeFormat(ctx).format(java.util.Date(t.endAt))
-        )
+        t.running -> s.endsAt(android.text.format.DateFormat.getTimeFormat(ctx).format(java.util.Date(t.endAt)))
         t.isPaused -> s.paused
-        else -> null
+        else -> s.ready
     }
 
     Column(
         modifier
             .fillMaxWidth()
-            .progressBorder(
-                progress = if (t.finished) 1f else progress,
-                c1 = c1,
-                c2 = c2,
-                corner = corner,
-                intensity = pulse
-            )
-            .glass(shape, fill = 0.07f, edge = 0.18f)
-            .background(
-                Brush.linearGradient(listOf(c1.copy(alpha = 0.16f), Color.Transparent, c2.copy(alpha = 0.06f)))
-            )
-            .padding(horizontal = 22.dp, vertical = 20.dp)
+            .graphicsLayer { scaleX = sc; scaleY = sc }
+            .clip(RoundedCornerShape(28.dp))
+            .background(bg)
+            .clickable(interactionSource = src, indication = null, onClick = onEdit)
+            .padding(start = 20.dp, end = 16.dp, top = 18.dp, bottom = 16.dp)
     ) {
-        // Name + total duration
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier
-                    .size(8.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(Brush.linearGradient(listOf(c1, c2)))
-            )
-            Spacer(Modifier.width(10.dp))
             Text(
-                text = t.displayName(s),
-                color = Color.White.copy(alpha = 0.85f),
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Medium,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
+                t.displayName(s), style = Type.label.copy(fontSize = 15.sp), color = c.onContainer.copy(alpha = 0.85f),
+                maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f)
             )
+            Spacer(Modifier.width(8.dp))
             Text(
-                text = formatDuration(t.durationMs),
-                color = Palette.TextDim,
-                fontSize = 12.sp,
-                style = Tnum,
+                formatDuration(t.durationMs), style = fs(12.sp, 600, 100), color = c.onContainer,
                 modifier = Modifier
-                    .glass(RoundedCornerShape(50), fill = 0.06f, edge = 0.15f)
+                    .clip(CircleShape)
+                    .background(c.onContainer.copy(alpha = 0.10f))
                     .padding(horizontal = 10.dp, vertical = 4.dp)
             )
         }
 
-        Spacer(Modifier.height(8.dp))
-
-        // Time remaining
-        Text(
-            text = formatTime(rem, showMs),
-            color = if (t.finished) c1 else Color.White,
-            fontSize = if (showMs) 44.sp else 56.sp,
-            fontWeight = FontWeight.Light,
-            letterSpacing = (-1).sp,
-            style = Tnum,
-            maxLines = 1,
-            softWrap = false
+        TimeText(
+            formatTime(rem, showMs),
+            style = fs(if (showMs) 44.sp else 54.sp, 700, 114, (-1.2).sp),
+            color = c.onContainer,
+            animate = true,
+            modifier = Modifier.padding(top = 2.dp)
         )
+        Text(status, style = Type.rowSub, color = c.onContainer.copy(alpha = 0.8f))
 
-        Text(
-            text = subtitle ?: " ",
-            color = if (t.finished) c1 else Palette.TextDim,
-            fontSize = 13.sp,
-            fontWeight = if (t.finished) FontWeight.SemiBold else FontWeight.Normal
-        )
+        Spacer(Modifier.height(12.dp))
+        WavyProgress(progress = if (t.finished) 0f else progress, color = c.accent, track = c.track, moving = t.running)
+        Spacer(Modifier.height(14.dp))
 
-        Spacer(Modifier.height(16.dp))
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            val (label, icon, action) = when {
+                t.finished -> Triple(s.stop, Ic.stop, onReset)
+                t.running -> Triple(s.pause, Ic.pause, onToggle)
+                t.isPaused -> Triple(s.resume, Ic.play, onToggle)
+                else -> Triple(s.start, Ic.play, onToggle)
+            }
+            TButton(
+                text = label, icon = icon, onClick = action, height = 52.dp,
+                container = c.accent, content = c.onAccent, modifier = Modifier.weight(1f)
+            )
+            if (t.finished) {
+                IconBtn(Ic.replay, s.restart, onStart, tint = c.onContainer)
+            } else if (t.running || t.isPaused) {
+                IconBtn(Ic.replay, s.reset, onReset, tint = c.onContainer)
+            }
+            IconBtn(Ic.edit, s.editTimer, onEdit, tint = c.onContainer)
+        }
+    }
+}
 
-        // Actions
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            GradientCircleButton(
-                onClick = onToggle,
-                size = 54.dp,
-                brush = Brush.linearGradient(listOf(c1, c2))
+// ---------------------------------------------------------------- bottom bar
+
+@Composable
+private fun BottomNav(tab: Int, onTab: (Int) -> Unit, s: Strings, modifier: Modifier = Modifier) {
+    val pal = LocalPal.current
+    Row(
+        modifier
+            .fillMaxWidth()
+            .background(pal.surfaceLow)
+            .navigationBarsPadding()
+            .height(NavHeight)
+            .padding(horizontal = 32.dp)
+    ) {
+        listOf(Ic.timer to s.appTitle, Ic.tune to s.settings).forEachIndexed { i, (icon, label) ->
+            val on = i == tab
+            val w by animateDpAsState(if (on) 64.dp else 24.dp, spring(0.6f, 500f), label = "w")
+            val a by animateFloatAsState(if (on) 1f else 0f, tween(200), label = "a")
+            val col by animateColorAsState(if (on) pal.onSurface else pal.onSurfaceVariant, tween(250), label = "c")
+            Column(
+                Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null) { onTab(i) },
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
-                if (t.running) {
-                    PauseGlyph(Color.White)
-                } else {
-                    Icon(
-                        Icons.Filled.PlayArrow,
-                        contentDescription = if (t.isPaused) s.resume else s.start,
-                        tint = Color.White,
-                        modifier = Modifier.size(30.dp)
+                Box(Modifier.size(64.dp, 34.dp), contentAlignment = Alignment.Center) {
+                    Box(
+                        Modifier
+                            .width(w)
+                            .fillMaxHeight()
+                            .graphicsLayer { alpha = a }
+                            .clip(CircleShape)
+                            .background(pal.secondaryContainer)
                     )
+                    Icon(icon, contentDescription = label, tint = col, modifier = Modifier.size(24.dp))
                 }
-            }
-            GlassIconButton(onClick = onReset) {
-                Icon(Icons.Filled.Refresh, contentDescription = s.reset, tint = Color.White)
-            }
-            Spacer(Modifier.weight(1f))
-            GlassIconButton(onClick = onEdit, size = 42.dp) {
-                Icon(Icons.Filled.Edit, contentDescription = s.editTimer, tint = Color.White.copy(alpha = 0.85f), modifier = Modifier.size(20.dp))
-            }
-            GlassIconButton(onClick = onDelete, size = 42.dp) {
-                Icon(Icons.Filled.Delete, contentDescription = s.delete, tint = Color.White.copy(alpha = 0.7f), modifier = Modifier.size(20.dp))
+                Spacer(Modifier.height(4.dp))
+                Text(label, style = if (on) Type.navOn else Type.nav, color = col, maxLines = 1)
             }
         }
     }
 }
 
+// ---------------------------------------------------------------- settings
+
 @Composable
-fun TimerDialog(
+private fun SettingsScreen(settings: AppSettings, s: Strings, onChange: (AppSettings) -> Unit) {
+    val ctx = LocalContext.current
+    val pal = LocalPal.current
+    val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val version = remember {
+        runCatching { ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName }.getOrNull() ?: ""
+    }
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(start = 16.dp, end = 16.dp, top = top + 16.dp, bottom = bottom + NavHeight + 24.dp)
+    ) {
+        Header(s.settings, s.settingsQuip)
+
+        SectionLabel(s.language)
+        Card {
+            Seg(
+                options = listOf("system" to s.auto, "fr" to "Français", "en" to "English"),
+                selected = settings.lang,
+                onSelect = { onChange(settings.copy(lang = it)) }
+            )
+        }
+
+        SectionLabel(s.display)
+        SwitchRow(
+            title = s.showMs, sub = s.showMsHint, checked = settings.showMs,
+            onChange = { onChange(settings.copy(showMs = it)) }, shape = groupShape(0, 1)
+        )
+
+        SectionLabel(s.look)
+        Card {
+            Text(s.theme, style = Type.rowTitle, color = pal.onSurface, modifier = Modifier.padding(start = 4.dp, bottom = 10.dp))
+            Seg(
+                options = listOf("auto" to s.auto, "light" to s.light, "dark" to s.dark, "amoled" to s.amoled),
+                selected = settings.theme,
+                onSelect = { onChange(settings.copy(theme = it)) }
+            )
+            Text(s.color, style = Type.rowTitle, color = pal.onSurface, modifier = Modifier.padding(start = 4.dp, top = 18.dp, bottom = 10.dp))
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                APP_HUES.forEach { (key, h) ->
+                    Swatch(
+                        color = hsl(h, 52f, if (pal.dark) 58f else 46f),
+                        on = settings.color == key,
+                        ring = pal.onSurface,
+                        onClick = { onChange(settings.copy(color = key)) }
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        SwitchRow(
+            title = s.pattern, sub = s.patternHint, checked = settings.pattern,
+            onChange = { onChange(settings.copy(pattern = it)) }, shape = groupShape(0, 1)
+        )
+
+        SectionLabel(s.about)
+        Card {
+            Text("Multi Minuteurs $version".trim(), style = fs(18.sp, 700, 120), color = pal.onSurface)
+            Spacer(Modifier.height(4.dp))
+            Text(s.aboutText, style = Type.body, color = pal.onSurfaceVariant)
+        }
+    }
+}
+
+@Composable
+private fun Card(content: @Composable () -> Unit) {
+    val pal = LocalPal.current
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(28.dp))
+            .background(pal.surfaceC)
+            .padding(16.dp)
+    ) { content() }
+}
+
+@Composable
+private fun Swatch(color: Color, on: Boolean, ring: Color, onClick: () -> Unit) {
+    val sc by animateFloatAsState(if (on) 1f else 0.82f, spring(0.45f, 400f), label = "sc")
+    val ringA by animateFloatAsState(if (on) 1f else 0f, tween(200), label = "ra")
+    Box(
+        Modifier
+            .size(52.dp)
+            .graphicsLayer { scaleX = sc; scaleY = sc }
+            .border(3.dp, ring.copy(alpha = ringA), CircleShape)
+            .padding(6.dp)
+            .clip(CircleShape)
+            .background(color)
+            .clickable(interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick),
+        contentAlignment = Alignment.Center
+    ) {
+        if (on) Icon(Ic.check, contentDescription = null, tint = Color.White, modifier = Modifier.size(22.dp))
+    }
+}
+
+// ---------------------------------------------------------------- new / edit sheet
+
+private val PRESETS = listOf(1, 3, 5, 10, 15, 20, 30, 60)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun TimerSheet(
     initial: TimerItem?,
     s: Strings,
     onDismiss: () -> Unit,
     onConfirm: (String, Long) -> Unit,
+    onDelete: (() -> Unit)?,
 ) {
+    val pal = LocalPal.current
+    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
+    fun close(then: () -> Unit) {
+        scope.launch { state.hide() }.invokeOnCompletion { then(); onDismiss() }
+    }
+
     val initMs = initial?.durationMs ?: (5 * 60_000L)
     var label by remember { mutableStateOf(initial?.label ?: "") }
     var h by remember { mutableIntStateOf((initMs / 3_600_000L).toInt().coerceAtMost(23)) }
     var m by remember { mutableIntStateOf(((initMs / 60_000L) % 60).toInt()) }
     var sec by remember { mutableIntStateOf(((initMs / 1000L) % 60).toInt()) }
     val total = (h * 3600L + m * 60L + sec) * 1000L
-    val panel = RoundedCornerShape(32.dp)
 
-    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = state,
+        containerColor = pal.surfaceLow,
+        contentColor = pal.onSurface,
+        shape = RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp),
+        dragHandle = { BottomSheetDefaults.DragHandle(color = pal.outlineVariant) },
+    ) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .padding(20.dp)
-                .clip(panel)
-                .background(Brush.verticalGradient(listOf(Color(0xF21C1A33), Color(0xF20E1424))))
-                .border(
-                    1.dp,
-                    Brush.linearGradient(
-                        listOf(Color.White.copy(alpha = 0.35f), Color.White.copy(alpha = 0.03f), Color.White.copy(alpha = 0.2f))
-                    ),
-                    panel
-                )
-                .padding(22.dp)
+                .navigationBarsPadding()
+                .imePadding()
+                .padding(start = 20.dp, end = 20.dp, bottom = 16.dp)
         ) {
-            Text(
-                text = if (initial == null) s.newTimer else s.editTimer,
-                color = Color.White,
-                fontSize = 22.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(Modifier.height(16.dp))
+            Text(if (initial == null) s.newTimer else s.editTimer, style = Type.sheetTitle, color = pal.onSurface)
+            Spacer(Modifier.height(18.dp))
 
-            OutlinedTextField(
+            Text(s.name, style = Type.label, color = pal.onSurfaceVariant, modifier = Modifier.padding(start = 6.dp, bottom = 6.dp))
+            BasicTextField(
                 value = label,
-                onValueChange = { label = it },
-                label = { Text(s.name) },
+                onValueChange = { label = it.take(40) },
                 singleLine = true,
-                shape = RoundedCornerShape(16.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.White,
-                    unfocusedTextColor = Color.White,
-                    focusedContainerColor = Color.White.copy(alpha = 0.05f),
-                    unfocusedContainerColor = Color.White.copy(alpha = 0.05f),
-                    cursorColor = Palette.Cyan,
-                    focusedBorderColor = Palette.Cyan,
-                    unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
-                    focusedLabelColor = Palette.Cyan,
-                    unfocusedLabelColor = Palette.TextDim,
-                ),
-                modifier = Modifier.fillMaxWidth()
+                textStyle = fs(18.sp, 500, 100, color = pal.onSurface),
+                cursorBrush = SolidColor(pal.primary),
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
+                decorationBox = { inner ->
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(18.dp))
+                            .background(pal.surfaceHigh)
+                            .padding(horizontal = 18.dp, vertical = 16.dp)
+                    ) {
+                        if (label.isEmpty()) {
+                            Text(s.namePlaceholder, style = fs(18.sp, 420, 100), color = pal.onSurfaceVariant.copy(alpha = 0.6f))
+                        }
+                        inner()
+                    }
+                }
             )
 
             Spacer(Modifier.height(18.dp))
-            Row(Modifier.fillMaxWidth()) {
-                listOf(s.unitH, s.unitMin, s.unitS).forEach { unit ->
-                    Text(
-                        text = unit,
-                        color = Palette.TextDim,
-                        fontSize = 13.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.weight(1f)
+            Text(s.duration, style = Type.label, color = pal.onSurfaceVariant, modifier = Modifier.padding(start = 6.dp, bottom = 8.dp))
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                PRESETS.forEach { min ->
+                    val ms = min * 60_000L
+                    Chip(
+                        text = if (min >= 60) "${min / 60} h" else "$min min",
+                        on = total == ms,
+                        onClick = { h = min / 60; m = min % 60; sec = 0 }
                     )
                 }
             }
-            Spacer(Modifier.height(6.dp))
 
+            Spacer(Modifier.height(14.dp))
+            Row(Modifier.fillMaxWidth()) {
+                listOf(s.unitH, s.unitMin, s.unitS).forEach { unit ->
+                    Text(unit, style = Type.label, color = pal.onSurfaceVariant, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
+                }
+            }
+            Spacer(Modifier.height(4.dp))
             Box(Modifier.fillMaxWidth().height(WheelItemHeight * 5)) {
-                // Selection band behind the wheels
                 Box(
                     Modifier
                         .align(Alignment.Center)
                         .fillMaxWidth()
-                        .height(WheelItemHeight)
-                        .glass(RoundedCornerShape(16.dp), 0.10f, 0.25f)
+                        .height(WheelItemHeight + 4.dp)
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(pal.surfaceHigh)
                 )
                 Row(Modifier.fillMaxSize()) {
-                    WheelPicker(count = 24, initial = h, onChange = { h = it }, modifier = Modifier.weight(1f))
-                    WheelPicker(count = 60, initial = m, onChange = { m = it }, modifier = Modifier.weight(1f))
-                    WheelPicker(count = 60, initial = sec, onChange = { sec = it }, modifier = Modifier.weight(1f))
+                    WheelPicker(count = 24, value = h, onChange = { h = it }, modifier = Modifier.weight(1f))
+                    WheelPicker(count = 60, value = m, onChange = { m = it }, modifier = Modifier.weight(1f))
+                    WheelPicker(count = 60, value = sec, onChange = { sec = it }, modifier = Modifier.weight(1f))
                 }
             }
 
             if (initial != null && total != initial.durationMs && (initial.running || initial.isPaused)) {
-                Spacer(Modifier.height(10.dp))
-                Text(text = s.editResetNote, color = Palette.Pink, fontSize = 12.sp)
+                Text(s.editResetNote, style = Type.caption, color = pal.error, modifier = Modifier.padding(start = 6.dp, top = 10.dp))
             }
 
             Spacer(Modifier.height(20.dp))
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                PillButton(text = s.cancel, onClick = onDismiss, modifier = Modifier.weight(1f))
-                PillButton(
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                if (onDelete != null) {
+                    TButton(
+                        text = null, icon = Ic.delete, onClick = { close(onDelete) },
+                        container = pal.surfaceHigh, content = pal.error, modifier = Modifier.width(56.dp)
+                    )
+                }
+                TButton(
+                    text = s.cancel, onClick = { close {} },
+                    container = pal.surfaceHigh, content = pal.onSurface, modifier = Modifier.weight(1f)
+                )
+                TButton(
                     text = if (initial == null) s.start else s.save,
-                    onClick = { onConfirm(label.trim(), total) },
-                    modifier = Modifier.weight(1f),
-                    primary = true,
-                    enabled = total > 0
+                    onClick = { val l = label.trim(); val ms = total; close { onConfirm(l, ms) } },
+                    container = pal.primary, content = pal.onPrimary, enabled = total > 0,
+                    modifier = Modifier.weight(1.3f)
                 )
             }
         }
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsSheet(
-    settings: AppSettings,
-    s: Strings,
-    onDismiss: () -> Unit,
-    onChange: (AppSettings) -> Unit,
-) {
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        containerColor = Color(0xF0121220),
-        contentColor = Color.White,
-        scrimColor = Color.Black.copy(alpha = 0.5f)
-    ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 24.dp)
-                .padding(bottom = 32.dp)
-                .navigationBarsPadding()
-        ) {
-            Text(text = s.settings, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Bold)
-            Spacer(Modifier.height(20.dp))
-
-            Text(text = s.language, color = Palette.TextDim, fontSize = 13.sp)
-            Spacer(Modifier.height(8.dp))
-            Row(
-                Modifier.fillMaxWidth().glass(RoundedCornerShape(50), 0.06f).padding(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                listOf("system" to s.system, "fr" to "Français", "en" to "English").forEach { (key, name) ->
-                    val selected = settings.lang == key
-                    Box(
-                        Modifier
-                            .weight(1f)
-                            .clip(RoundedCornerShape(50))
-                            .then(if (selected) Modifier.background(Palette.Accent) else Modifier)
-                            .clickable { onChange(settings.copy(lang = key)) }
-                            .padding(vertical = 12.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = name,
-                            color = if (selected) Color.White else Palette.TextDim,
-                            fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                            fontSize = 14.sp
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(24.dp))
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .glass(RoundedCornerShape(22.dp), 0.06f)
-                    .padding(horizontal = 18.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(text = s.showMs, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
-                    Text(text = s.showMsHint, color = Palette.TextDim, fontSize = 13.sp)
-                }
-                Switch(
-                    checked = settings.showMs,
-                    onCheckedChange = { onChange(settings.copy(showMs = it)) },
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = Color.White,
-                        checkedTrackColor = Palette.Violet,
-                        uncheckedThumbColor = Color.White.copy(alpha = 0.8f),
-                        uncheckedTrackColor = Color.White.copy(alpha = 0.12f),
-                        uncheckedBorderColor = Color.White.copy(alpha = 0.25f),
-                    )
-                )
-            }
-        }
-    }
+private fun Chip(text: String, on: Boolean, onClick: () -> Unit) {
+    val pal = LocalPal.current
+    val src = remember { MutableInteractionSource() }
+    val pressed by src.collectIsPressedAsState()
+    val sc by animateFloatAsState(if (pressed) 0.9f else 1f, spring(0.45f, 500f), label = "sc")
+    val bg by animateColorAsState(if (on) pal.primary else pal.surfaceHigh, tween(220), label = "bg")
+    val fg by animateColorAsState(if (on) pal.onPrimary else pal.onSurface, tween(220), label = "fg")
+    Text(
+        text, style = fs(15.sp, 620, 108), color = fg, maxLines = 1,
+        modifier = Modifier
+            .graphicsLayer { scaleX = sc; scaleY = sc }
+            .clip(RoundedCornerShape(14.dp))
+            .background(bg)
+            .clickable(interactionSource = src, indication = null, onClick = onClick)
+            .padding(horizontal = 16.dp, vertical = 10.dp)
+    )
 }

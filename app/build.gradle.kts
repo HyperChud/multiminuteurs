@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.multiminuteurs"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "2.0"
     }
     signingConfigs {
         // Release key comes from environment variables (set by the release workflow from repo secrets).
