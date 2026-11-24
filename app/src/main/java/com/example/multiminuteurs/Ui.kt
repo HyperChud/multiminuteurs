@@ -183,7 +183,8 @@ private fun HomeScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         item(key = "head") { Header(s.appTitle, quip) }
-        item(key = "hero") { Hero(timers, now, showMs, s) }
+        // the summary card only makes sense with several timers
+        if (timers.size >= 2) item(key = "hero") { Hero(timers, now, showMs, s, Modifier.animateItem()) }
         item(key = "actions") {
             val ringing = timers.filter { it.finished }
             val running = timers.filter { it.running }
@@ -270,7 +271,7 @@ private fun BulkButton(label: String, icon: androidx.compose.ui.graphics.vector.
 
 /** Big card at the top, like Topé's: what's going on right now. */
 @Composable
-private fun Hero(timers: List<TimerItem>, now: Long, showMs: Boolean, s: Strings) {
+private fun Hero(timers: List<TimerItem>, now: Long, showMs: Boolean, s: Strings, modifier: Modifier = Modifier) {
     val ctx = LocalContext.current
     val pal = LocalPal.current
     val ringing = timers.filter { it.finished }
@@ -278,7 +279,7 @@ private fun Hero(timers: List<TimerItem>, now: Long, showMs: Boolean, s: Strings
     val fg = pal.onPrimaryContainer
 
     Box(
-        Modifier
+        modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(36.dp, 36.dp, 36.dp, 12.dp))
             .background(pal.primaryContainer)
