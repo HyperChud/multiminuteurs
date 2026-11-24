@@ -1,7 +1,6 @@
 package com.example.multiminuteurs
 
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
@@ -17,7 +16,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.using
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -508,8 +506,7 @@ fun TimeText(text: String, style: TextStyle, color: Color, animate: Boolean, mod
                                 targetState = ch,
                                 transitionSpec = {
                                     (slideInVertically(spring(dampingRatio = 0.75f, stiffness = 520f)) { -it / 2 } + fadeIn(tween(140))) togetherWith
-                                        (slideOutVertically(spring(dampingRatio = 1f, stiffness = 520f)) { it / 2 } + fadeOut(tween(110))) using
-                                        SizeTransform(clip = false)
+                                        (slideOutVertically(spring(dampingRatio = 1f, stiffness = 520f)) { it / 2 } + fadeOut(tween(110)))
                                 },
                                 label = "digit"
                             ) { c -> Text(c.toString(), style = style, color = color, maxLines = 1) }
