@@ -4,23 +4,28 @@
 
 A simple Android app for running several timers at the same time.
 
-Kotlin + Jetpack Compose, no ads, no tracking, no network access. Everything stays on the device.
+<!-- SCREENSHOTS -->
+
+## Privacy
+
+- **No internet permission**: the app can't send anything anywhere.
+- **No ads, no tracking, no account**: timers and settings stay on the phone.
 
 ## Features
 
-- Run as many timers as you want in parallel
-- Start, pause, resume, reset, edit or delete each timer on its own
-- Hour / minute / second picker wheels (they loop, snap into place and give haptic feedback), plus quick picks
-- A summary card on top: next timer to ring, or the one ringing
+- **Run as many timers as you want** in parallel, each with its own colour card and a wavy progress bar
+- Start, pause, resume, reset, edit or delete each timer on its own (tap a card to edit it)
+- **Picker wheels** for hours / minutes / seconds (they loop, snap into place and give haptic feedback), plus
+  quick picks from 1 min to 1 h
+- With two timers or more, a summary card shows the next one to ring, or the one ringing
 - Pause, resume or silence every timer in one tap
-- Each timer gets its own color card with a wavy progress bar
 - Ongoing notification with a live countdown and a pause button
 - Alarm with sound and vibration when a timer ends, even if the app is closed or the screen is locked
 - Timers are saved and rescheduled after a reboot
-- Settings: language (auto / French / English), optional hundredths of a second, theme (auto / light / dark /
-  AMOLED), 5 accent colours and a background pattern you can turn off
-- Material 3 Expressive look, shared with Topé: Fredoka font, springy
-  buttons that squish when pressed, rolling digits
+- French and English
+- Material 3 Expressive look: Fredoka font, springy buttons that squish when pressed, rolling digits, light /
+  dark / AMOLED themes, 5 accent colours and a background pattern you can turn off
+- Optional hundredths-of-a-second display
 
 ## Download
 
@@ -35,6 +40,9 @@ APK and attaches it to a GitHub release. This needs the signing secrets describe
 
 For quick test builds, every push to `main` builds a debug APK. Open the **Actions** tab, pick the latest run and download the
 `MultiMinuteurs-debug` artifact. You can also start a build by hand with **Run workflow**.
+
+Debug builds are signed with a throwaway key, so they won't install over a release (or over each other):
+uninstall first (your timers are lost).
 
 The release workflow needs these repository secrets (**Settings → Secrets and variables → Actions**):
 
