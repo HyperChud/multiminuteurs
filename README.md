@@ -4,7 +4,14 @@
 
 A simple Android app for running several timers at the same time.
 
-<!-- SCREENSHOTS -->
+<p align="center">
+  <img src="docs/home.png" width="19%" alt="Home">
+  <img src="docs/ringing.png" width="19%" alt="A timer ringing">
+  <img src="docs/new.png" width="19%" alt="New timer">
+  <img src="docs/settings.png" width="19%" alt="Settings">
+  <img src="docs/light.png" width="19%" alt="Light theme">
+</p>
+<p align="center"><sub>Screenshots use made-up demo data.</sub></p>
 
 ## Privacy
 
