@@ -33,6 +33,6 @@ class MainActivity : ComponentActivity() {
             askNotifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
 
-        setContent { AppTheme { TimersScreen() } }
+        setContent { AppTheme { App() } }
     }
 }

@@ -10,13 +10,17 @@ Kotlin + Jetpack Compose, no ads, no tracking, no network access. Everything sta
 
 - Run as many timers as you want in parallel
 - Start, pause, resume, reset, edit or delete each timer on its own
-- Hour / minute / second picker wheels (they loop, snap into place and give haptic feedback)
-- Each timer gets its own color, and its border fills up as a progress bar
+- Hour / minute / second picker wheels (they loop, snap into place and give haptic feedback), plus quick picks
+- A summary card on top: next timer to ring, or the one ringing
+- Pause, resume or silence every timer in one tap
+- Each timer gets its own color card with a wavy progress bar
 - Ongoing notification with a live countdown and a pause button
 - Alarm with sound and vibration when a timer ends, even if the app is closed or the screen is locked
 - Timers are saved and rescheduled after a reboot
-- Settings: language (system / English / French) and an optional hundredths-of-a-second display
-- "Glass" look over a slowly animated background
+- Settings: language (auto / French / English), optional hundredths of a second, theme (auto / light / dark /
+  AMOLED), 5 accent colours and a background pattern you can turn off
+- Material 3 Expressive look, shared with Topé: Fredoka font, springy
+  buttons that squish when pressed, rolling digits
 
 ## Download
 
@@ -62,8 +66,9 @@ Requirements: JDK 17, Android SDK 35. The minimum Android version is 8.0 (API 26
 ```
 app/src/main/java/com/example/multiminuteurs/
 ├── MainActivity.kt   entry point
-├── Ui.kt             screens, timer cards, dialogs
-├── Glass.kt          glass style, animated background, picker wheels, progress border
+├── Ui.kt             screens: home, settings, new/edit sheet, bottom bar
+├── Components.kt     buttons, segmented control, wavy progress, pattern, picker wheel, rolling digits
+├── Theme.kt          colors computed from one hue, Fredoka font, light/dark/AMOLED
 ├── Model.kt          timer data and time formatting
 ├── TimerStore.kt     saving timers
 ├── TimerActions.kt   start / pause / edit logic and alarm scheduling
@@ -71,3 +76,5 @@ app/src/main/java/com/example/multiminuteurs/
 ├── Receivers.kt      alarm and boot receivers
 └── Settings.kt       settings and FR/EN strings
 ```
+
+Font: Fredoka (SIL Open Font License 1.1, see `fonts/`).
